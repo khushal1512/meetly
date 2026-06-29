@@ -1,36 +1,70 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Meetly - Office Desk & Room Booking App
+
+Meetly is a clean, modern, and secure single-page application for booking office desks and meeting rooms. It features visual schedule overviews, recurring reservations, and device-bound booking ownership checks to ensure bookings are secure and easy to manage.
+
+## Features
+
+- **Responsive Grid View**: Day view showing time slots (8 AM to 5 PM) for each of the 10 desks.
+- **Overlap Detection**: Blocks double-bookings. Allows back-to-back bookings (e.g. one ending exactly when the next begins).
+- **Flexible Recurrence**: Ability to specify repeating a weekly booking up to 12 weeks. Checks constraints for all occurrences at once and rejects the entire sequence if any overlapping bookings exist.
+- **Booking Owner Tokens**: Prevents other users or incognito sessions from canceling your bookings. Automatically stores a randomized token in the browser's `localStorage` to check cancellation permissions.
+- **Optional Booking Notes**: Add a short description to a booking (visible directly on the timeline and on hover tooltip).
+- **Cancel Confirmation**: Interactive modal to prevent accidental cancellations.
+- **Clean Date Selection**: Robust date selection using `react-day-picker` on the sidebar.
+
+## Prerequisites
+
+- **Node.js** (v18+)
+- **pnpm** (preferred) or **npm**
+- **PostgreSQL Database** (e.g., Supabase, NeonDB, or local PostgreSQL instance)
 
 ## Getting Started
 
-First, run the development server:
+### 1. Clone the repository
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone <repository-url>
+cd meetly
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Install dependencies
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+pnpm install
+# or
+npm install
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 3. Environment Configuration
 
-## Learn More
+Create a `.env` file in the root of the project with your database connection URL:
 
-To learn more about Next.js, take a look at the following resources:
+```env
+DATABASE_URL="postgresql://username:password@hostname:port/database?sslmode=require"
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 4. Database Setup
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Synchronize the database schema with Prisma and seed the initial desks:
 
-## Deploy on Vercel
+```bash
+# Push the schema to database and generate Prisma client
+pnpm exec prisma db push
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+# (Optional) Seed the database with 10 default desks
+pnpm exec prisma db seed
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+*Note: The project requires `@prisma/client` and `prisma` tools. Ensure they generate matching version clients.*
+
+### 5. Run the Application
+
+Start the local development server:
+
+```bash
+pnpm dev
+# or
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) in your browser to start scheduling desks!
