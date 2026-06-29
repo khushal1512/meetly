@@ -1,65 +1,162 @@
-import Image from "next/image";
+'use client'
+
+import { useState, useEffect } from 'react'
+import { format, startOfDay, addHours } from 'date-fns'
+import { v4 as uuidv4 } from 'uuid'
+import { getDesksAndBookings, bookDesk, cancelBooking } from './actions'
+import type { Desk } from '../types'
+
+import { CalendarSidebar } from '../components/CalendarSidebar'
+import { DeskGrid } from '../components/DeskGrid'
+import { BookingModal } from '../components/BookingModal'
+import { CancelConfirmationModal } from '../components/CancelConfirmationModal'
 
 export default function Home() {
+  const [currentDate, setCurrentDate] = useState(new Date())
+  const [desks, setDesks] = useState<Desk[]>([])
+  const [loading, setLoading] = useState(true)
+  const [ownerToken, setOwnerToken] = useState<string | null>(null)
+
+  // Booking Modal State
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
+  const [selectedDesk, setSelectedDesk] = useState<Desk | null>(null)
+  const [selectedStart, setSelectedStart] = useState<Date | null>(null)
+  const [selectedEnd, setSelectedEnd] = useState<Date | null>(null)
+  const [bookingError, setBookingError] = useState('')
+
+  // Cancel Modal State
+  const [bookingToCancel, setBookingToCancel] = useState<string | null>(null)
+
+  // Initialize identity token
+  useEffect(() => {
+    let token = localStorage.getItem('meetly_owner_token')
+    if (!token) {
+      token = uuidv4()
+      localStorage.setItem('meetly_owner_token', token)
+    }
+    setOwnerToken(token)
+  }, [])
+
+  const fetchDesks = async () => {
+    setLoading(true)
+    const dateStr = format(currentDate, 'yyyy-MM-dd')
+    try {
+      const data = await getDesksAndBookings(dateStr)
+      // Since Server Actions serialize dates as strings, we parse them back to Date objects if needed, 
+      // but standard Prisma output handles them fine in Server Components. 
+      // However, to be safe, if they come back as strings, we parse them.
+      // Wait, next.js server actions handle Dates correctly in recent versions.
+      setDesks(data as unknown as Desk[])
+    } catch (err) {
+      console.error(err)
+    }
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    fetchDesks()
+  }, [currentDate])
+
+  const handleSlotClick = (desk: Desk, hour: number) => {
+    const start = addHours(startOfDay(currentDate), hour)
+    const end = addHours(startOfDay(currentDate), hour + 1)
+
+    setSelectedDesk(desk)
+    setSelectedStart(start)
+    setSelectedEnd(end)
+    setBookingError('')
+    setIsBookingModalOpen(true)
+  }
+
+  const handleBookConfirm = async (bookedBy: string, recurringWeeks: number, note: string) => {
+    if (!selectedDesk || !selectedStart || !selectedEnd || !ownerToken) return
+
+    setBookingError('')
+    const res = await bookDesk({
+      deskId: selectedDesk.id,
+      startAt: selectedStart,
+      endAt: selectedEnd,
+      bookedBy,
+      ownerToken,
+      recurringWeeks,
+      note: note.trim() || undefined
+    })
+
+    if (!res.success) {
+      setBookingError(res.error || 'Failed to book desk')
+      return
+    }
+
+    setIsBookingModalOpen(false)
+    fetchDesks()
+  }
+
+  const handleCancelClick = (bookingId: string) => {
+    setBookingToCancel(bookingId)
+  }
+
+  const handleCancelConfirm = async () => {
+    if (!bookingToCancel || !ownerToken) return
+
+    const res = await cancelBooking(bookingToCancel, ownerToken)
+    if (!res.success) {
+      alert(res.error || 'Failed to cancel')
+    }
+    setBookingToCancel(null)
+    fetchDesks()
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="min-h-screen bg-gray-50 text-gray-900 p-8 font-sans">
+      <div className="max-w-7xl mx-auto">
+        <header className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-4xl font-bold tracking-tight text-[#FE4D00]">Meetly</h1>
+            <p className="text-gray-500 mt-1">Office Desk & Room Booking</p>
+          </div>
+        </header>
+
+        <div className="flex flex-col lg:flex-row gap-8 items-start">
+          <CalendarSidebar
+            selectedDate={currentDate}
+            onDateSelect={setCurrentDate}
+          />
+
+          <div className="flex-1 w-full">
+            {loading ? (
+              <div className="flex items-center justify-center h-64 bg-white rounded-[10px] border border-gray-200">
+                <div className="text-gray-500 animate-pulse font-medium">Loading availability...</div>
+              </div>
+            ) : (
+              <DeskGrid
+                desks={desks}
+                currentDate={currentDate}
+                ownerToken={ownerToken}
+                onSlotClick={handleSlotClick}
+                onCancelClick={handleCancelClick}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {isBookingModalOpen && selectedDesk && selectedStart && selectedEnd && (
+        <BookingModal
+          desk={selectedDesk}
+          startAt={selectedStart}
+          endAt={selectedEnd}
+          error={bookingError}
+          onClose={() => setIsBookingModalOpen(false)}
+          onConfirm={handleBookConfirm}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+      )}
+
+      {bookingToCancel && (
+        <CancelConfirmationModal
+          onClose={() => setBookingToCancel(null)}
+          onConfirm={handleCancelConfirm}
+        />
+      )}
     </div>
-  );
+  )
 }
