@@ -26,6 +26,7 @@ model Booking {
   bookedBy        String
   ownerToken      String
   recurringGroupId String?
+  note            String?
 
   desk     Desk     @relation(fields: [deskId], references: [id], onDelete: Cascade)
 }
